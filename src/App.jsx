@@ -1,9 +1,10 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import SingleButton from "./components/SingleButton";
 import LoadingCustom from "./components/LoadingCustom";
 import SpeechComponent from "./components/SpeechComponent";
 import InputComponent from "./components/InputComponent";
+import { PiSpeakerHigh, PiSpeakerNone } from "react-icons/pi";
 // import OpenAI from "openai";
 
 // const API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
@@ -18,25 +19,21 @@ const App = () => {
   const [output, setOutput] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      // Gemini AI
       setLoading(true);
       const model = genAI.getGenerativeModel({
-        model: "gemini-pro", generationConfig: {
-
-        }
+        model: "gemini-1.5-flash-002"
       });
       const result = await model.generateContent(input)
-      const response = result.response.text();
+      let response = result.response.text();
 
-      // console.log(response);
-      setOutput([
-        ...output, response
-      ])
+      response = response.replace(/\*/g, "");
 
+      setOutput((prevResponse) => [...prevResponse, response]);
       setLoading(false);
     } catch (error) {
       console.log(error);
@@ -45,20 +42,63 @@ const App = () => {
     }
   };
 
+  const speak = (text) => {
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+      const speech = new SpeechSynthesisUtterance(text);
+      speech.lang = "en-US";
+      speech.rate = 1.1;
+      speech.pitch = 1;
+      speech.onend = () => setSpeaking(false);
+      window.speechSynthesis.speak(speech);
+      setSpeaking(true);
+    } else {
+      alert("Speech not supported");
+    }
+  }
+
+  useEffect(() => {
+    if (output.length > 0) {
+      const lastOutput = output[output.length - 1];
+      speak(lastOutput);
+    }
+  }, [output])
+
+  const handleSpeak = () => {
+    if (speaking) {
+      window.speechSynthesis.pause();
+      setSpeaking(false);
+    } else {
+      window.speechSynthesis.resume();
+      const lastResponse = output[output.length - 1];
+      if (lastResponse) {
+        speak(lastResponse);
+      }
+    }
+  }
+
   return (
-    <section className="flex justify-center gap-x-20 items-center">
-      <div>
-        <div className="flex flex-col items-center mt-20">
+    <section className="max-w-screen-xl w-full flex flex-col lg:flex-row gap-x-20 items-center justify-center my-20">
+      <div className="flex flex-col gap-y-10">
+        <div className="flex flex-col items-center">
           <h1 className="text-3xl text-slate-800 font-semibold">Chat Cuy.co</h1>
-          <form onSubmit={handleSubmit} className="mt-10 flex gap-x-3">
+          <form onSubmit={handleSubmit} className="mt-10 flex gap-x-5">
             <InputComponent input={input}
               onchange={(e) => setInput(e.target.value)}
               text={'Enter your message'} />
             <SingleButton />
           </form>
         </div>
-        <div className="mt-20 flex flex-col items-center w-[30rem] h-auto bg-slate-200 p-7 rounded-md">
-          <h3 className="mb-5">Response: </h3>
+        <div className="flex flex-col gap-y-5 items-center w-[20rem] h-auto bg-slate-200 p-5 rounded-md">
+          <div className="flex items-center gap-x-5">
+            <h3 className="">Response: </h3>
+            <button onClick={handleSpeak} className="">
+              {speaking
+                ? <PiSpeakerHigh />
+                : <PiSpeakerNone />
+              }
+            </button>
+          </div>
           {
             loading
               ?
@@ -79,10 +119,9 @@ const App = () => {
           {error && <p className="text-red-500">{error}</p>}
         </div>
       </div>
-
+      <div className="bg-gray-100 w-full h-1 my-20 lg:hidden block" />
       <div>
         <SpeechComponent />
-
       </div>
     </section>
   );
